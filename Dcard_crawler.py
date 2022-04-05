@@ -26,7 +26,7 @@ def to_csv(x):
 if __name__ == '__main__':
     scroll_time = int(input('請輸入想要捲動幾次'))
     driver = webdriver.Chrome()
-    driver.get('https://www.dcard.tw/search/posts?field=all&query=%E7%B4%85%E7%89%9B&sort=relevance')
+    driver.get('https://www.dcard.tw/search/posts?field=all&query=%E7%B4%85%E7%89%9B&sort=relevance') # fill the Dcard search result page url
     results = []
     prev_ele = None
     for now_time in range(1, scroll_time+1):
