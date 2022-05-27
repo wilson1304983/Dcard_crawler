@@ -9,9 +9,6 @@ import re
 
 import jieba
 import jieba.analyse
-
-from PIL import Image
-import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 
 from snownlp import SnowNLP
@@ -24,26 +21,27 @@ def to_csv(x):
     x.to_csv(filepath)
 
 if __name__ == '__main__':
+    #參考來源 https://ithelp.ithome.com.tw/articles/10277885?sc=iThelpR
     scroll_time = int(input('請輸入想要捲動幾次'))
     driver = webdriver.Chrome()
-    driver.get('https://www.dcard.tw/search/posts?field=all&query=%E7%B4%85%E7%89%9B&sort=relevance') # fill the Dcard search result page url
+    driver.get('https://www.dcard.tw/search/posts?query=%E6%94%BF%E5%A4%A7') # fill the Dcard search result page url
     results = []
     prev_ele = None
     for now_time in range(1, scroll_time+1):
-        sleep(2)
-        eles = driver.find_elements_by_class_name('tgn9uw-0')
+        sleep(1)
+        eles = driver.find_elements_by_class_name('sc-b205d8ae-0')
         # 若串列中存在上一次的最後一個元素，則擷取上一次的最後一個元素到當前最後一個元素進行爬取
-        try:
-            # print(eles)
-            # print(prev_ele)
+        try:    
+            #print(eles)
+            #print(prev_ele)
             eles = eles[eles.index(prev_ele):]
         except:
             pass
         for ele in eles:
             try:
-                title = ele.find_element_by_class_name('tgn9uw-3').text
-                href = ele.find_element_by_class_name('tgn9uw-3').get_attribute('href')
-                like = ele.find_element_by_class_name('cgoejl-3').text
+                title = ele.find_element_by_class_name('sc-b205d8ae-3').text
+                href = ele.find_element_by_class_name('sc-b205d8ae-3').get_attribute('href')
+                like = ele.find_element_by_class_name('sc-28312033-3').text
                 article_id = href[href.rfind("/")+1:]
                 result = {
                     'title': title,
@@ -60,11 +58,9 @@ if __name__ == '__main__':
         driver.execute_script(js)
         
     df = pd.DataFrame(results, columns =['title', 'href', 'like','id'], dtype = int) 
-    to_csv(df)
-    #print(results)
+    #to_csv(df)
     driver.quit()
     
-#df = pd.read_csv('desktop/dcard.csv',encoding='unicode_escape')
 
 #抓留言 爬內文
 contents = []
@@ -100,7 +96,7 @@ def separate(content):
     
 for i in ids:
     try:
-        sleep(20) #too short will be blocked
+        sleep(15) #too short will be blocked
         r = requests.get(f'https://www.dcard.tw/service/api/v2/posts/{i}')
         response = r.text
         data = json.loads(response)
@@ -121,7 +117,7 @@ with open('desktop/text.txt', 'w',encoding='utf-8') as f:
         f.write('\n')
         
 #字詞分析、統計
-text = open('desktop/text_all.txt', 'r',encoding='utf-8').read()
+text = open('desktop/text.txt', 'r',encoding='utf-8').read()
 jieba.set_dictionary('dict.txt.big.txt')
 jieba.analyse.set_stop_words('stopwords.txt') #停用詞庫
 tags = jieba.analyse.extract_tags(text, topK=20, withWeight=True)
@@ -135,6 +131,7 @@ for tag, weight in tags:
 #bar chart
 myList = dic.items()
 x, y = zip(*myList) 
+plt.rcParams['figure.figsize'] = [16, 9]
 plt.bar(x, y)
 
 # 自然語言分析範例
@@ -147,9 +144,8 @@ for sentence in s.sentences:
         #print(str(sentence)+"："+str(SnowNLP(sentence).sentiments))
         sum = sum + (SnowNLP(sentence).sentiments)
         times += 1
-print(sum/times)
+print("正負面情緒比為："+ str(sum/times))
 
 #wordcloud
 wc = WordCloud(background_color="white",width=1920,height=1080, max_words=20,relative_scaling=0.5,normalize_plurals=False,font_path="simsun.ttc",prefer_horizontal=1).generate_from_frequencies(dic)
 plt.imshow(wc)
-
