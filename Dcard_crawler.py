@@ -22,9 +22,11 @@ def to_csv(x):
 
 if __name__ == '__main__':
     #參考來源 https://ithelp.ithome.com.tw/articles/10277885?sc=iThelpR
-    scroll_time = int(input('請輸入想要捲動幾次'))
+    #由於Dcard網站的設計是一種動態網站，透過不斷往下方捲動來讀取新文章，
+    #也因此我們為了能讀取更多的資料，我們透過Selenium中windowscroll的功能協助爬蟲的過程。
+    scroll_time = int(input('請輸入想要捲動幾次：'))
     driver = webdriver.Chrome()
-    driver.get('https://www.dcard.tw/search/posts?query=%E6%94%BF%E5%A4%A7') # fill the Dcard search result page url
+    driver.get('https://www.dcard.tw/search/posts?query=tinder') # fill the Dcard search result page url
     results = []
     prev_ele = None
     for now_time in range(1, scroll_time+1):
@@ -32,11 +34,10 @@ if __name__ == '__main__':
         eles = driver.find_elements_by_class_name('sc-b205d8ae-0')
         # 若串列中存在上一次的最後一個元素，則擷取上一次的最後一個元素到當前最後一個元素進行爬取
         try:    
-            #print(eles)
-            #print(prev_ele)
             eles = eles[eles.index(prev_ele):]
         except:
             pass
+        #擷取標題，連結，讚數，文章代碼並將這些代碼儲存起來
         for ele in eles:
             try:
                 title = ele.find_element_by_class_name('sc-b205d8ae-3').text
@@ -49,7 +50,7 @@ if __name__ == '__main__':
                     'like': like,
                     'id':article_id,
                 }
-                results.append(result)
+                results.append(result) #放到results裡
             except:
                 pass
         prev_ele = eles[-1]
@@ -62,7 +63,7 @@ if __name__ == '__main__':
     driver.quit()
     
 
-#抓留言 爬內文
+#爬內文
 contents = []
 ids = []
 if len(df) == len(results):   
@@ -73,6 +74,7 @@ elif len(df) != len(results):
         ids.append(df['id'][i])
 ids = np.unique(ids).tolist()
 #清洗func
+#為避免符號，連結等的影響，我們用以下的程式碼移除這些符號
 def remove_punctuation(line):
     str(line)
     rule = re.compile("[^a-zA-Z0-9\u4e00-\u9fa5]")
@@ -81,7 +83,7 @@ def remove_punctuation(line):
 def separate(content):
     #以換行符號作為分割
     a = content.split('\n')
-    #奇怪的洗兩次
+    #清洗2次
     for x in range(0,2):
         for i in a:
             if i[0:4] == 'http':
@@ -94,10 +96,12 @@ def separate(content):
                 a.remove(i)
     return(a)
     
+count = 0
+#使用API+運用設計好的Function清洗資料
 for i in ids:
     try:
         sleep(15) #too short will be blocked
-        r = requests.get(f'https://www.dcard.tw/service/api/v2/posts/{i}')
+        r = requests.get(f'https://www.dcard.tw/service/api/v2/posts/{i}') #參考API https://blog.jiatool.com/posts/dcard_api_v2/
         response = r.text
         data = json.loads(response)
         #清洗
@@ -105,30 +109,31 @@ for i in ids:
         content = separate(content)
         for x in content:
             x = remove_punctuation(x)
-            if len(x) > 0:
+            if len(x) > 0: #不是空的句子就加入contents
                 contents.append(x)
-        print('done')
+        count += 1
+        print('done '+str(count)+"/"+str(len(ids))) 
     except:
-        print('error')
-#寫出txt
+        print('error '+str(count)+"/"+str(len(ids)))
+#將清洗後的資料寫成txt並匯出
 with open('desktop/text.txt', 'w',encoding='utf-8') as f:
     for line in contents:
         f.write(line)
         f.write('\n')
         
-#字詞分析、統計
+#透過TF-IDF Method來做字詞分析與統計
 text = open('desktop/text.txt', 'r',encoding='utf-8').read()
 jieba.set_dictionary('dict.txt.big.txt')
-jieba.analyse.set_stop_words('stopwords.txt') #停用詞庫
-tags = jieba.analyse.extract_tags(text, topK=20, withWeight=True)
-for tag, weight in tags:
+jieba.analyse.set_stop_words('stopwords.txt') #停用詞庫 #去除無用字眼如:哈哈，哈哈哈
+tags = jieba.analyse.extract_tags(text, topK=20, withWeight=True) # 找出最重要的字詞TOP20
+for tag, weight in tags: #印出重要性排名
     print(tag + "," + str(int(weight * 1000)))
     
-#文字雲
 dic = {}
 for tag, weight in tags:
     dic[tag] = int(weight * 1000)
-#bar chart
+
+#將字詞分析統計結果繪製成bar chart
 myList = dic.items()
 x, y = zip(*myList) 
 plt.rcParams['figure.figsize'] = [16, 9]
@@ -136,16 +141,15 @@ plt.bar(x, y)
 
 # 自然語言分析範例
 s = SnowNLP(text)
-# 列出套件斷句的情況
+# 分析相關字詞的正負面情緒比
 sum = 0
 times = 0
 for sentence in s.sentences:
-    if (SnowNLP(sentence).sentiments) != 0.5:
-        #print(str(sentence)+"："+str(SnowNLP(sentence).sentiments))
+    if (SnowNLP(sentence).sentiments) != 0.5: #去除中立情緒
         sum = sum + (SnowNLP(sentence).sentiments)
         times += 1
 print("正負面情緒比為："+ str(sum/times))
 
-#wordcloud
+#將結果繪製成文字雲(wordcloud)
 wc = WordCloud(background_color="white",width=1920,height=1080, max_words=20,relative_scaling=0.5,normalize_plurals=False,font_path="simsun.ttc",prefer_horizontal=1).generate_from_frequencies(dic)
 plt.imshow(wc)
