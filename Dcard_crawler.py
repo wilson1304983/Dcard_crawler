@@ -1,3 +1,6 @@
+#在程式碼的一開始導入(import)我們在接下來會用到的packages
+#Packages可以想成APP，導入Packages就像在把APP下載下來
+#這樣就可以確定在接下來的編碼我們能運用這些APP所帶來的功能
 import pandas as pd
 import requests
 import json
@@ -23,18 +26,21 @@ def to_csv(x):
 if __name__ == '__main__':
     #參考來源 https://ithelp.ithome.com.tw/articles/10277885?sc=iThelpR
     #由於Dcard網站的設計是一種動態網站，透過不斷往下方捲動來讀取新文章，
-    #也因此我們為了能讀取更多的資料，我們透過Selenium中windowscroll的功能協助爬蟲的過程。
+    #也因此我們為了能讀取更多的資料，我們透過Selenium中windowscroll的功能靠程式碼自動往下滾動卷軸讀取新資料協助爬蟲的過程。
     scroll_time = int(input('請輸入想要捲動幾次：'))
     driver = webdriver.Chrome()
     driver.get('https://www.dcard.tw/search/posts?query=tinder') # fill the Dcard search result page url
     results = []
     prev_ele = None
+    #接下來的for迴圈是要執行卷軸滾動與資料讀取
+    #簡單來說就是在每一次的滾動過程中去將文章的標題，連結，讚數，文章代碼儲存下來
     for now_time in range(1, scroll_time+1):
         sleep(1)
         eles = driver.find_elements_by_class_name('sc-b205d8ae-0')
         # 若串列中存在上一次的最後一個元素，則擷取上一次的最後一個元素到當前最後一個元素進行爬取
         try:    
-            eles = eles[eles.index(prev_ele):]
+            eles = eles[eles.index(prev_ele):]   #這一行是為了避免文章的重複擷取 
+            #概念上就是從上一次最後存取的文章之後開始存取新的資料
         except:
             pass
         #擷取標題，連結，讚數，文章代碼並將這些代碼儲存起來
@@ -57,13 +63,14 @@ if __name__ == '__main__':
         print(f"now scroll {now_time}/{scroll_time}")
         js = "window.scrollTo(0, document.body.scrollHeight);"
         driver.execute_script(js)
-        
+    #將擷取下來的資料存入Dataframe的格式中  
     df = pd.DataFrame(results, columns =['title', 'href', 'like','id'], dtype = int) 
     #to_csv(df)
     driver.quit()
     
 
-#爬內文
+#接下來我們可以開始針對擷取下來的資料內文進行分析
+#為了抓取內文，我們需要確定文章id沒有重複
 contents = []
 ids = []
 if len(df) == len(results):   
@@ -74,7 +81,10 @@ elif len(df) != len(results):
         ids.append(df['id'][i])
 ids = np.unique(ids).tolist()
 #清洗func
-#為避免符號，連結等的影響，我們用以下的程式碼移除這些符號
+#為了避免符號，連結等的影響，我們用以下的程式碼移除這些符號
+#以下就是我們設計的清洗function
+#首先是以句子的開頭來進行清洗
+#針對開頭為以下四種的內文句子我們會將他排除在我們的內文分析之外
 def remove_punctuation(line):
     str(line)
     rule = re.compile("[^a-zA-Z0-9\u4e00-\u9fa5]")
@@ -100,7 +110,7 @@ count = 0
 #使用API+運用設計好的Function清洗資料
 for i in ids:
     try:
-        sleep(15) #too short will be blocked
+        sleep(15) # 為避免被網站阻擋爬蟲，設置時間延遲
         r = requests.get(f'https://www.dcard.tw/service/api/v2/posts/{i}') #參考API https://blog.jiatool.com/posts/dcard_api_v2/
         response = r.text
         data = json.loads(response)
@@ -120,9 +130,9 @@ with open('desktop/text.txt', 'w',encoding='utf-8') as f:
     for line in contents:
         f.write(line)
         f.write('\n')
-        
+
 #透過TF-IDF Method來做字詞分析與統計
-text = open('desktop/text.txt', 'r',encoding='utf-8').read()
+text = open('desktop/text.txt', 'r',encoding='utf-8').read()#由桌面匯入清洗過的內文資料  
 jieba.set_dictionary('dict.txt.big.txt')
 jieba.analyse.set_stop_words('stopwords.txt') #停用詞庫 #去除無用字眼如:哈哈，哈哈哈
 tags = jieba.analyse.extract_tags(text, topK=20, withWeight=True) # 找出最重要的字詞TOP20
